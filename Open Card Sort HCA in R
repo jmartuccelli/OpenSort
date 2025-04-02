@@ -1,0 +1,150 @@
+
+#------------ LOADING AND TRANSFORM THE DATA-------------#
+# OPEN THIS FILE NAME
+df<- Raw_data_Csort # Use this line for your assignment: remove #
+#df <- HCA.data2024 #comment this line when you are working on your assignment: add # at the beginning
+View(df)
+str(df) # check the structure of the data. Note that the first column is listed as character 
+
+# convert the first column (food items into a no-name column)
+# If you skip this part, R will try to scale this column as well and you cannot start your analysis
+df2<-df[,-1]
+rownames(df2)<-df[,1]
+# Provide the structure of the data. Always good to check
+str(df2) # it only list the numerical data
+# remove any missing points
+df <- na.omit(df2)
+
+# standardize the values to avoid an unbalance weights between categories
+dfz <- scale(df)
+head(dfz)
+
+#------------------------- PART 2: DISTANCE MATRIX--------------------#
+# install.packages("factoextra")
+# install.packages("ggplot2")
+library(ggplot2)
+library(factoextra)
+# compute the distance between clusters
+distance <- get_dist(dfz)
+# visualize distance matrix
+fviz_dist(distance, lab_size = 8, gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"))
+
+#------------------PART 3: PERFORMING HCA: DIFFERENT ALGORITHMS------------#
+#METHOD 1: USING THE FUNCTION HCLUST
+# Dissimilarity matrix
+d <- dist(dfz, method = "euclidean")
+
+# Hierarchical clustering using Complete, Average, Single, and Ward Linkage
+# There are more, to check them out use help("hclust"), they are listed under method argument.
+hc1 <- hclust(d, method = "complete")
+hc2 <- hclust(d, method = "average" )
+hc3 <- hclust(d, method = "single" )
+hc4 <- hclust(d, method = "ward.D" )
+hc5 <- hclust(d, method = "ward.D2" )
+#extract coefficients
+library(cluster)
+coef.hclust(hc1)
+coef.hclust(hc2)
+coef.hclust(hc3)
+coef.hclust(hc4)
+coef.hclust(hc5)
+
+# METHOD 2: USING AGNES AND DIANA FUNCTIONS
+#Not need to scale using this method. agnes and diana functions perform all the necessary steps for you. 
+# diana: agl hierarchical clustering
+hc6 <- agnes(df, method = "average" )
+hc7 <- agnes(df, method = "single" )
+hc8 <- agnes(df, method = "complete" )
+hc9 <- agnes(df, method = "ward" )
+# diana: divisive hierarchical clustering
+hc10 <- diana(df)
+# Agglomerative coefficient
+hc6$ac
+hc7$ac
+hc8$ac
+hc9$ac
+# Divisive coefficient; amount of clustering structure found
+hc10$dc
+
+#------------------------------- Part4: VISUALIZATION-------------#
+######## PART 1: Basic Dendrograms ##########
+# Plot dendrograms for those obtained using HCLUST
+plot(hc1, cex = 0.5, hang = -1, main = "hc1")
+plot(hc2, cex = 0.5, hang = -1, main = "hc2")
+plot(hc3, cex = 0.5, hang = -1, main = "hc3")
+plot(hc4, cex = 0.5, hang = -1, main = "hc4")
+plot(hc5, cex = 0.5, hang = -1, main = "hc5")
+
+# plots dendrograms for those obtained using AGNES AND DIANA functions
+pltree(hc6, cex = 0.5, hang = -1, main = "hc6")
+pltree(hc7, cex = 0.5, hang = -1, main = "hc7")
+pltree(hc8, cex = 0.5, hang = -1, main = "hc8")
+pltree(hc9, cex = 0.5, hang = -1, main = "hc9")
+pltree(hc10, cex = 0.5, hang = -1, main = "hc10")
+
+#------------------------- PART 5: MULTIDIMENSIONAL SCALING (MDS) WITH CLUSTERS --------------------#
+library(ggrepel)
+# Classical MDS using the distance matrix
+mds <- cmdscale(distance, k = 2)  # k is the number of dimensions
+
+# Convert MDS results to a data frame for plotting
+mds_df <- as.data.frame(mds)
+colnames(mds_df) <- c("Dim1", "Dim2")
+
+# CHANGE K VALUE TO THE NUMBER OF CLUSTER THAT FIT YOUR DATA: in my example the k is 8 and the HCA model is hc10
+cluster_assignments <- cutree(hc10, k = 8)  # Cut the dendrogram to create 8 clusters
+
+# Add cluster assignments to the MDS data frame
+mds_df$Cluster <- as.factor(cluster_assignments)
+
+# Plotting the MDS with clusters
+library(ggplot2)
+ggplot(mds_df, aes(x = Dim1, y = Dim2, color = Cluster)) +
+  geom_point(alpha = 0.5, size = 3) +  # Adjust size and transparency as needed
+  geom_text_repel(aes(label = rownames(mds_df)), 
+                  box.padding = 0.35, 
+                  point.padding = 0.5,
+                  size = 3,  # Adjust text size for clarity
+                  max.overlaps = Inf) +  # Allows more labels
+  xlab("Dimension 1") +
+  ylab("Dimension 2") +
+  ggtitle("Multidimensional Scaling (MDS) Plot with Clusters") +
+  scale_color_brewer(palette = "Set1") +  # Color palette for clarity
+  theme_minimal()
+
+# with grey background to improve clarity
+ggplot(mds_df, aes(x = Dim1, y = Dim2, color = Cluster)) +
+  geom_point(alpha = 0.5, size = 3) +  # Adjust size and transparency as needed
+  geom_text_repel(aes(label = rownames(mds_df)), 
+                  box.padding = 0.35, 
+                  point.padding = 0.5,
+                  size = 3,  # Adjust text size for clarity
+                  max.overlaps = Inf) +  # Allows more labels
+  xlab("Dimension 1") +
+  ylab("Dimension 2") +
+  ggtitle("Multidimensional Scaling (MDS) Plot with Clusters") +
+  scale_color_brewer(palette = "Set1") +  # Color palette for clarity
+  theme_minimal() +
+  theme(panel.background = element_rect(fill = "grey", colour = "grey"),  # Set background to grey
+        plot.background = element_rect(fill = "grey", colour = "grey"))  # Optional: Set plot area background to grey
+
+########### PART 5: Advanced Visualization########
+# USING FACTOR EXTRA LIBRARY
+#I am using multiple one HC AND K values only for demo purposes.
+# below are multiple visualizations that makes it easy to view the cluster
+# To use as a final step, once you decide on the hc model you believe is a better fit for your data.
+fviz_dend(hc4, cex = 0.5,k = 8)
+fviz_dend(hc3, cex = 0.5,k = 7,ggtheme = theme_gray())
+#by adding the argument type, you can create different dendrogram typs
+#circular
+fviz_dend(hc5, cex = 0.5,k = 10,ggtheme = theme_gray(),type = "circular")
+#ggthem change the background and the look of the graph
+fviz_dend(hc5, cex = 0.5,k = 10,ggtheme = theme_bw())
+fviz_dend(hc6, cex = 0.5,k = 15,ggtheme = theme_dark())
+#You can also add rectangle around the clusters: The rect function work on with some models
+fviz_dend(hc7, cex = 0.5,k = 14,ggtheme = theme_gray(), rect = TRUE)
+#IF YOU DO NOT LIKE THE DEFAULT COLORS YOU CAN CUSTUMIZE THEM
+#since I have 10 clusters, i need ten colors
+fviz_dend(hc9, cex = 0.5,k = 10,ggtheme = theme_gray(), rect = TRUE,
+          k_colors = c("#1B9E77", "#D95F02", "#7570B3", "#E7298A","#2E9FDF", "#00AFBB", "#E7B800","#FC4E07","#7661b2","blue"))
+fviz_dend(hc10, cex = 0.5,k = 12,ggtheme = theme_gray(), rect = TRUE) #this HCA requires more clusters
